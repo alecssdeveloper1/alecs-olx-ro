@@ -11,6 +11,7 @@ ofertas.db
 
 # Python Virtual Environments & Caches
 venv/
+.venv/
 env/
 ENV/
 __pycache__/

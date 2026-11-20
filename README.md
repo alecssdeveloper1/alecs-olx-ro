@@ -11,12 +11,12 @@
   <a href="https://www.sqlite.org/"><img src="https://img.shields.io/badge/Database-SQLite-lightgrey.svg" alt="SQLite"></a>
 </p>
 
-Autonomous deal hunter and market intelligence bot for OLX. Scrapes target queries in real-time, calculates statistical market pricing, correlates hardware specs with factual PassMark benchmarks, scores deals with Google Gemini AI, and dispatches rich Telegram alerts.
+Deal hunter and market intelligence bot configured for OLX Romania. It searches OLX.ro, compares listing prices in lei (RON), correlates hardware specs with PassMark benchmarks, scores deals with Google Gemini AI, and dispatches Telegram alerts.
 
 <p align="center">
-  <img src="assets/telegram-alert.png" alt="Telegram alert for a DDR5 2x16GB RAM kit at R$ 2,100: AI score 10/10 (Tier S), OLX median R$ 3,429.50, verdict and benchmark notes" width="360">
+  <img src="assets/telegram-alert.png" alt="Example Telegram deal alert with an AI score, market comparison, verdict, and benchmark notes" width="360">
   <br>
-  <em>A real alert: price 39% below the OLX median, scored Tier S by Gemini.</em>
+  <em>Illustrative screenshot from the upstream project; its currency and market data are not Romanian.</em>
 </p>
 
 ---
@@ -26,11 +26,11 @@ Autonomous deal hunter and market intelligence bot for OLX. Scrapes target queri
 ```mermaid
 flowchart LR
     subgraph Ingestion["Ingestion"]
-        OLX["OLX Scraper (curl_cffi)"] --> Parser["HTML Parser (BeautifulSoup)"]
+        OLX["OLX.ro (standard HTTP requests)"] --> Parser["HTML Parser (BeautifulSoup)"]
     end
 
     subgraph Intelligence["Intelligence"]
-        Parser --> Storage[("SQLite DB (ofertas.db)")]
+        Parser --> Storage[("SQLite DB (ofertas_ro.db)")]
         Parser --> Analytics["Market Analytics (Median & Liquidity)"]
         Parser --> Benchmark["Ground Truth Benchmarks (PassMark)"]
         Analytics & Benchmark --> Gemini["Gemini Flash AI Valuation Engine"]
@@ -44,9 +44,9 @@ flowchart LR
 ```
 
 The bot operates continuously with zero human intervention:
-1. **Scraping Engine:** Fetches live search queries on OLX using browser-mimicking headers via `curl_cffi`.
+1. **Search Engine:** Fetches OLX.ro search results using standard HTTP requests and an identifiable User-Agent. It does not imitate browsers or bypass access controls.
 2. **Noise Filtering:** Identifies and filters out false positives (e.g. complete gaming rigs when searching for standalone GPU parts).
-3. **Market Analytics:** Analyzes scraped historical data to calculate median prices, factual discounts, liquidity rating, and estimated turnover time.
+3. **Market Analytics:** Compares listing prices from the local history. Liquidity and turnover figures are heuristics, not Romania-calibrated sale data.
 4. **Factual Grounding:** Cross-references GPUs with real PassMark G3D scores, TDP, and PCIe power requirements to avoid AI hallucinations.
 5. **AI Deal Scoring:** Prompts Google Gemini with factual market data to evaluate deal tier (Tier S, A, B, C) and generate a concise verdict.
 6. **Telegram Dispatch:** Delivers instant alerts containing the product image, price, discount percentage, benchmark comparison, and direct link.
@@ -72,12 +72,14 @@ garimpo/
 │   ├── banner.jpeg      # Project illustration banner
 │   └── telegram-alert.png # Example alert screenshot
 ├── monitor.py           # Main monitoring daemon, scrapers, and Telegram dispatcher
+├── olx_ro.py            # OLX.ro search URLs, listing IDs, and RON price helpers
 ├── market_analytics.py  # Statistical pricing, median calculation, and liquidity ratings
 ├── benchmarks.py        # Hardware database with PassMark scores and specs
+├── tests/               # OLX.ro URL, parser, and currency tests
 ├── requirements.txt     # Python dependencies
 ├── LICENSE              # MIT license
 ├── .env.example         # Template for environment variables
-└── ofertas.db           # SQLite database (auto-generated at runtime)
+└── ofertas_ro.db        # Romanian-market SQLite database (auto-generated)
 ```
 
 ---
@@ -180,13 +182,13 @@ The bot supports direct slash commands as well as natural language parsing via G
 | `/add <query> [max_price]` | Adds a new search alert (e.g. `/add RTX 3060 1200`) |
 | `/del <id>` | Deletes an active search alert by its ID (e.g. `/del 3`) |
 
-> **Natural Language Support:** You can also chat naturally with the bot (e.g., *"Quero monitorar PS Vita até 450 reais"*), and Gemini will extract the search query and price ceiling automatically.
+> **Natural Language Support:** You can also chat naturally with the bot (e.g., *"Monitorizează iPhone 12 până la 1.200 lei"*), and Gemini will extract the search query and price ceiling automatically.
 
 ---
 
 ## Disclaimer
 
-This project is for personal and educational use. Automated access may go against the OLX terms of service: keep the polling interval reasonable, do not redistribute scraped data, and use it at your own risk.
+This project is configured for Romania: search URLs use `olx.ro/oferte/q-...`, listing IDs use OLX.ro's `-ID....html` format, and prices are expressed in lei (RON). The default wait between scans is 90 seconds; each scan checks at most five result pages and 15 listings per page for each search term, without a location filter. Liquidity and turnover figures remain rough heuristics and are not calibrated from Romanian completed sales. OLX may restrict automated access; review its current terms and only use automation where you have permission. If OLX returns HTTP 403 or 429, the bot disables further scans until restart rather than attempting to bypass the restriction.
 
 ## License
 

@@ -1,118 +1,259 @@
 """
-Módulo de Inteligência e Estatísticas de Mercado da OLX.
-Calcula mediana de preços limpa, remoção de ruídos (PCs completos em buscas de peças),
-desconto percentual factual e liquidez de giro.
+Statistici de piață OLX — orientat pe telefoane (arbitraj / revânzare).
+Calculează mediana, discountul, marja și lichiditatea pe modelul exact.
 """
 import os
 import sqlite3
 import statistics
 
-LIQUIDEZ_REFERENCIA = {
-    "PS VITA": {"liquidez": "Altíssima", "tempo_giro": "24h a 48h", "demanda": "Colecionadores e emulação portátil"},
-    "NINTENDO 3DS": {"liquidez": "Altíssima", "tempo_giro": "24h a 48h", "demanda": "Forte procura para desbloqueio e retrogaming"},
-    "NINTENDO 2DS": {"liquidez": "Alta", "tempo_giro": "2 a 4 dias", "demanda": "Busca constante por custo-benefício"},
-    "PSP": {"liquidez": "Alta", "tempo_giro": "2 a 5 dias", "demanda": "Alta procura nostálgica"},
-    "NINTENDO SWITCH": {"liquidez": "Altíssima", "tempo_giro": "12h a 36h", "demanda": "Produto líder de giro no mercado usado"},
-    "SSD SATA": {"liquidez": "Altíssima", "tempo_giro": "24h a 48h", "demanda": "Upgrade universal para PCs e notebooks antigos"},
-    "MEMORIA RAM DDR3": {"liquidez": "Alta", "tempo_giro": "2 a 4 dias", "demanda": "Manutenção corporativa e PCs de entrada"},
-    "GTX 750 TI": {"liquidez": "Alta", "tempo_giro": "2 a 4 dias", "demanda": "Placa clássica que não exige conector de energia"},
-    "GTX 1050": {"liquidez": "Altíssima", "tempo_giro": "24h a 48h", "demanda": "Alta procura para eSports em PCs básicos"},
-    "GTX 1050 TI": {"liquidez": "Altíssima", "tempo_giro": "24h a 48h", "demanda": "4GB VRAM com consumo baixo de 75W"},
-    "RX 550": {"liquidez": "Média/Alta", "tempo_giro": "3 a 6 dias", "demanda": "Alternativa de entrada para vídeo e jogos leves"},
-    "GTX 960": {"liquidez": "Média", "tempo_giro": "4 a 7 dias", "demanda": "Boa força bruta, mas consome 120W e exige conector 6 pinos"}
+import olx_ro
+
+# Lichiditate orientativă RO second-hand (euristici, nu garanții).
+REFERINTA_LICHIDITATE = {
+    # Telefoane — prioritate pentru fluxul actual
+    "IPHONE": {
+        "lichiditate": "Foarte ridicată",
+        "timp_vanzare": "12–48 de ore",
+        "cerere": "Cel mai lichid segment second-hand; Pro/Pro Max se mișcă cel mai repede",
+    },
+    "SAMSUNG": {
+        "lichiditate": "Foarte ridicată",
+        "timp_vanzare": "1–3 zile",
+        "cerere": "Serie S/A cu cerere constantă; Ultra se vinde bine sub mediană",
+    },
+    "GALAXY": {
+        "lichiditate": "Foarte ridicată",
+        "timp_vanzare": "1–3 zile",
+        "cerere": "Modele Galaxy lichide pe piața RO",
+    },
+    "HONOR": {
+        "lichiditate": "Ridicată",
+        "timp_vanzare": "2–5 zile",
+        "cerere": "Cerere bună pe mid-range; verifică varianta exactă (Smart/Pro)",
+    },
+    "XIAOMI": {
+        "lichiditate": "Ridicată",
+        "timp_vanzare": "2–5 zile",
+        "cerere": "Volum mare de anunțuri; marja vine din preț sub mediană",
+    },
+    "REDMI": {
+        "lichiditate": "Ridicată",
+        "timp_vanzare": "2–4 zile",
+        "cerere": "Segment entry/mid foarte căutat",
+    },
+    "POCO": {
+        "lichiditate": "Ridicată",
+        "timp_vanzare": "2–5 zile",
+        "cerere": "Bun raport preț/performanță; lichiditate bună",
+    },
+    "HUAWEI": {
+        "lichiditate": "Medie spre ridicată",
+        "timp_vanzare": "3–7 zile",
+        "cerere": "Cerere ok, dar fără GMS poate încetini vânzarea",
+    },
+    "PIXEL": {
+        "lichiditate": "Ridicată",
+        "timp_vanzare": "2–5 zile",
+        "cerere": "Nișă foto; se vinde bine dacă e curat și sub mediană",
+    },
+    "ONEPLUS": {
+        "lichiditate": "Medie spre ridicată",
+        "timp_vanzare": "3–6 zile",
+        "cerere": "Public mai mic decât Samsung/iPhone",
+    },
+    "MOTOROLA": {
+        "lichiditate": "Medie",
+        "timp_vanzare": "4–8 zile",
+        "cerere": "Prețuri mici, marje mici — caută discount clar",
+    },
+    "REALME": {
+        "lichiditate": "Medie spre ridicată",
+        "timp_vanzare": "3–6 zile",
+        "cerere": "Mid-range accesibil, cerere moderată",
+    },
+    "OPPO": {
+        "lichiditate": "Medie spre ridicată",
+        "timp_vanzare": "3–6 zile",
+        "cerere": "Cerere stabilă pe mid-range",
+    },
+    "VIVO": {
+        "lichiditate": "Medie",
+        "timp_vanzare": "4–8 zile",
+        "cerere": "Lichiditate mai slabă decât Samsung/Xiaomi",
+    },
+    "NOTHING": {
+        "lichiditate": "Medie",
+        "timp_vanzare": "4–7 zile",
+        "cerere": "Nișă; cumpără doar cu discount solid",
+    },
+    # Păstrate pentru GPU/console dacă mai apar căutări
+    "PS VITA": {"lichiditate": "Foarte ridicată", "timp_vanzare": "24–48 de ore", "cerere": "Colecționari"},
+    "NINTENDO 3DS": {"lichiditate": "Foarte ridicată", "timp_vanzare": "24–48 de ore", "cerere": "Retrogaming"},
+    "NINTENDO SWITCH": {"lichiditate": "Foarte ridicată", "timp_vanzare": "12–36 de ore", "cerere": "Consolă hibrid foarte lichidă"},
+    "GTX 1050": {"lichiditate": "Foarte ridicată", "timp_vanzare": "24–48 de ore", "cerere": "GPU entry"},
+    "RTX 3060": {"lichiditate": "Ridicată", "timp_vanzare": "2–4 zile", "cerere": "GPU mid-range"},
 }
 
-TERMOS_IGNORAR_PECA = ["pc gamer", "computador", "notebook", "laptop", "gabinete completo", "setup completo"]
+TERMENI_IGNORA_PIESA = [
+    "pc gamer",
+    "calculator",
+    "laptop",
+    "unitate completa",
+    "setup complet",
+]
 
-def obter_estatisticas_mercado(query, preco_anuncio, max_price=None, db_path=None):
-    if db_path is None:
-        db_path = os.getenv("DB_PATH", os.path.join(os.path.dirname(__file__), "ofertas.db"))
-    """
-    Calcula as estatísticas de mercado com base no histórico minerado da OLX:
-    - Preço mediano
-    - Desconto percentual real
-    - Grau de liquidez e tempo estimado de giro
-    - Margem projetada de revenda rápida
-    """
-    conn = sqlite3.connect(db_path)
+# Accesorii / piese — nu sunt telefonul complet pentru revânzare.
+TERMENI_IGNORA_TELEFON = [
+    "doar husa",
+    "doar husă",
+    "doar folie",
+    "folie sticla",
+    "folie sticlă",
+    "incarcator original",
+    "încărcător original",
+    "cablu usb",
+    "pentru piese",
+    "dezmembrari",
+    "dezmembrări",
+    "display nou",
+    "ecran nou",
+    "capac spate",
+    "baterie noua",
+    "baterie nouă",
+    "placa de baza",
+    "placă de bază",
+]
+
+MARCI_TELEFON = (
+    "iphone",
+    "samsung",
+    "galaxy",
+    "honor",
+    "xiaomi",
+    "redmi",
+    "poco",
+    "huawei",
+    "pixel",
+    "oneplus",
+    "motorola",
+    "realme",
+    "oppo",
+    "vivo",
+    "nothing",
+)
+
+
+def este_cautare_telefon(query: str) -> bool:
+    q = query.lower()
+    return any(marca in q for marca in MARCI_TELEFON)
+
+
+def obtine_statistici_piata(query, pret_anunt, pret_maxim=None, cale_db=None):
+    if cale_db is None:
+        cale_db = os.getenv(
+            "DB_PATH", os.path.join(os.path.dirname(__file__), "ofertas_ro.db")
+        )
+
+    conn = sqlite3.connect(cale_db)
     c = conn.cursor()
-    
-    palavras = [p for p in query.split() if len(p) > 2]
-    where_clauses = ["LOWER(title) LIKE ?" for _ in palavras]
-    params = [f"%{p.lower()}%" for p in palavras]
-    
-    # Se a busca for de peça avulsa (placa de vídeo, memória, SSD), ignora anúncios de PCs/Notebooks inteiros
+
+    cuvinte = [cuvant for cuvant in query.split() if len(cuvant) > 2]
+    clauze_where = ["LOWER(title) LIKE ?" for _ in cuvinte]
+    params = [f"%{cuvant.lower()}%" for cuvant in cuvinte]
+
     q_lower = query.lower()
-    eh_componente = any(x in q_lower for x in ["gtx", "rx", "rtx", "ram", "ddr3", "ddr4", "ssd", "placa"])
-    if eh_componente:
-        for t_ignora in TERMOS_IGNORAR_PECA:
-            where_clauses.append("LOWER(title) NOT LIKE ?")
+    este_componenta = any(
+        x in q_lower for x in ["gtx", "rx", "rtx", "ram", "ddr3", "ddr4", "ssd", "placa"]
+    )
+    if este_componenta:
+        for t_ignora in TERMENI_IGNORA_PIESA:
+            clauze_where.append("LOWER(title) NOT LIKE ?")
             params.append(f"%{t_ignora}%")
-            
-    where_str = " AND ".join(where_clauses) if where_clauses else "1=1"
-    
-    # Limite superior de corte para evitar distorções
-    teto_corte = (max_price * 1.8) if max_price and max_price > 0 else (preco_anuncio * 2.5 if preco_anuncio > 0 else 5000.0)
-    
-    c.execute(f"""
-        SELECT price 
-        FROM ads 
-        WHERE {where_str} 
-          AND price >= 15 
+
+    if este_cautare_telefon(query):
+        for t_ignora in TERMENI_IGNORA_TELEFON:
+            clauze_where.append("LOWER(title) NOT LIKE ?")
+            params.append(f"%{t_ignora}%")
+
+    where_str = " AND ".join(clauze_where) if clauze_where else "1=1"
+
+    # Plafon mai generos la telefoane scumpe (ex. iPhone Pro Max).
+    if pret_maxim and pret_maxim > 0:
+        plafon_taiere = pret_maxim * 1.8
+    elif pret_anunt > 0:
+        plafon_taiere = pret_anunt * (2.2 if este_cautare_telefon(query) else 2.5)
+    else:
+        plafon_taiere = 8000.0 if este_cautare_telefon(query) else 5000.0
+
+    c.execute(
+        f"""
+        SELECT title, price
+        FROM ads
+        WHERE {where_str}
+          AND price >= 50
           AND price <= ?
-    """, params + [teto_corte])
-    
+        """,
+        params + [plafon_taiere],
+    )
     rows = c.fetchall()
     conn.close()
-    
-    precos = sorted([float(r[0]) for r in rows if r[0] is not None])
-    
-    if len(precos) < 3:
-        # Se houver poucas amostras, estima mediana prudente
-        mediana = round(preco_anuncio * 1.35, 2) if preco_anuncio > 0 else 100.0
-        total_amostras = len(precos)
+
+    preturi = sorted(
+        [
+            float(price)
+            for title, price in rows
+            if price is not None
+            and olx_ro.title_matches_exact_model(query, title or "")
+        ]
+    )
+
+    if len(preturi) < 3:
+        # Estimare prudentă când istoricul e sărac (tipic la început pe un model nou).
+        mediana = round(pret_anunt * 1.25, 2) if pret_anunt > 0 else 100.0
+        total_esantioane = len(preturi)
     else:
-        # Filtro de Outliers IQR
         try:
-            q1, q2, q3 = statistics.quantiles(precos, n=4)
+            q1, q2, q3 = statistics.quantiles(preturi, n=4)
             iqr = q3 - q1
-            limite_inf = max(15.0, q1 - 1.5 * iqr)
-            limite_sup = q3 + 1.5 * iqr
-            precos_limpos = [p for p in precos if limite_inf <= p <= limite_sup]
-            if not precos_limpos:
-                precos_limpos = precos
-            mediana = round(statistics.median(precos_limpos), 2)
-            total_amostras = len(precos_limpos)
+            limita_inf = max(50.0, q1 - 1.5 * iqr)
+            limita_sup = q3 + 1.5 * iqr
+            preturi_curate = [p for p in preturi if limita_inf <= p <= limita_sup]
+            if not preturi_curate:
+                preturi_curate = preturi
+            mediana = round(statistics.median(preturi_curate), 2)
+            total_esantioane = len(preturi_curate)
         except Exception:
-            mediana = round(statistics.median(precos), 2)
-            total_amostras = len(precos)
-            
-    # Desconto em relação à mediana
+            mediana = round(statistics.median(preturi), 2)
+            total_esantioane = len(preturi)
+
     if mediana > 0:
-        desconto_pct = round(((mediana - preco_anuncio) / mediana) * 100, 1)
+        discount_pct = round(((mediana - pret_anunt) / mediana) * 100, 1)
     else:
-        desconto_pct = 0.0
-        
-    # Margem de revenda rápida estimada (venda a 90% da mediana)
-    preco_revenda_rapida = round(mediana * 0.90, 2)
-    margem_lucro = round(preco_revenda_rapida - preco_anuncio, 2)
-    
-    # Identifica perfil de liquidez da categoria
-    chave_liquidez = "Média"
-    tempo_giro = "3 a 7 dias"
+        discount_pct = 0.0
+
+    # Revânzare rapidă: telefoanele se mișcă mai bine aproape de mediană (92%).
+    factor_revanzare = 0.92 if este_cautare_telefon(query) else 0.90
+    pret_revanzare_rapida = round(mediana * factor_revanzare, 2)
+    marja_profit = round(pret_revanzare_rapida - pret_anunt, 2)
+
+    cheie_lichiditate = "Medie"
+    timp_vanzare = "3–7 zile"
     q_upper = query.upper()
-    for item_key, info in LIQUIDEZ_REFERENCIA.items():
-        if item_key in q_upper or any(palavra in q_upper for palavra in item_key.split()):
-            chave_liquidez = info["liquidez"]
-            tempo_giro = info["tempo_giro"]
+    # Marci mai lungi / specifice primul
+    for item_key, info in sorted(
+        REFERINTA_LICHIDITATE.items(), key=lambda x: len(x[0]), reverse=True
+    ):
+        if item_key in q_upper:
+            cheie_lichiditate = info["lichiditate"]
+            timp_vanzare = info["timp_vanzare"]
             break
-            
+
     return {
         "mediana": mediana,
-        "total_amostras": total_amostras,
-        "desconto_pct": desconto_pct,
-        "liquidez": chave_liquidez,
-        "tempo_giro": tempo_giro,
-        "preco_revenda_rapida": preco_revenda_rapida,
-        "margem_lucro": margem_lucro
+        "total_esantioane": total_esantioane,
+        "discount_pct": discount_pct,
+        "lichiditate": cheie_lichiditate,
+        "timp_vanzare": timp_vanzare,
+        "pret_revanzare_rapida": pret_revanzare_rapida,
+        "marja_profit": marja_profit,
     }
