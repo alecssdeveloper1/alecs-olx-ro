@@ -1,46 +1,91 @@
-# Alecs OLX RO
+<div align="center">
 
-Bot Telegram pentru **arbitraj pe telefoane** pe OLX România: găsește anunțuri sub prețul pieței pe **model exact**, le evaluează cu Gemini și te anunță pe Telegram.
+<img src="assets/banner.jpeg" alt="Alecs OLX RO" width="520"/>
 
-Repo privat: [alecssdeveloper1/alecs-olx-ro](https://github.com/alecssdeveloper1/alecs-olx-ro)
+# 📱 Alecs OLX RO
+
+[![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![OLX](https://img.shields.io/badge/OLX-România-23E5DB?style=for-the-badge&logo=shopify&logoColor=black)](https://www.olx.ro/)
+[![Telegram](https://img.shields.io/badge/Telegram-Bot-26A5E4?style=for-the-badge&logo=telegram&logoColor=white)](https://t.me/alecss12)
+[![Gemini](https://img.shields.io/badge/Google-Gemini%20AI-8E75B2?style=for-the-badge&logo=googlegemini&logoColor=white)](https://aistudio.google.com/)
+[![License](https://img.shields.io/badge/License-MIT-2ea44f?style=for-the-badge)](LICENSE)
+[![Private](https://img.shields.io/badge/Repo-Private-111827?style=for-the-badge&logo=github)](https://github.com/alecssdeveloper1/alecs-olx-ro)
+
+<img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=600&size=22&duration=3500&pause=900&color=23E5DB&center=true&vCenter=true&multiline=true&repeat=true&width=680&height=80&lines=Caut%C4%83+telefoane+sub+pre%C8%9Bul+pie%C8%9Bei;Model+exact+%C2%B7+Scor+AI+%C2%B7+Alert%C4%83+Telegram;Arbitraj+pe+OLX+Rom%C3%A2nia" alt="typing animation" />
+
+**Bot Telegram pentru arbitraj pe telefoane** — găsește chilipiruri pe OLX.ro, pe **model exact**, le notează cu AI și te anunță instant.
+
+<br/>
+
+### 🔔 Exemplu alertă din bot
+
+<img src="assets/telegram-alert.png" alt="Exemplu alertă Telegram" width="380"/>
+
+<br/>
+
+[![WhatsApp](https://img.shields.io/badge/WhatsApp-+40_732_159_658-25D366?style=for-the-badge&logo=whatsapp&logoColor=white)](https://wa.me/40732159658)
+[![Telegram Contact](https://img.shields.io/badge/Telegram-@alecss12-26A5E4?style=for-the-badge&logo=telegram&logoColor=white)](https://t.me/alecss12)
+
+</div>
 
 ---
 
-## Ce face
+## ✨ Ce face
 
-1. Monitorizează căutările tale pe **OLX.ro** (toată țara, fără filtru județ).
-2. Păstrează doar **modelul exact** (`honor 600` ≠ Smart/Pro; `iphone 12` ≠ 12 Pro).
-3. Compară prețul cu **mediana** din istoricul local.
-4. Evaluează oferta cu **Google Gemini** (scor 0–10, tier S/A/B/C).
-5. Trimite alertă pe Telegram dacă scorul e ≥ 6.
+| Pas | Acțiune |
+|:---:|:---|
+| 1️⃣ | Monitorizează căutările pe **OLX.ro** (toată țara) |
+| 2️⃣ | Filtrează **modelul exact** (`honor 600` ≠ Smart/Pro) |
+| 3️⃣ | Compară prețul cu **mediana** pieței locale |
+| 4️⃣ | Evaluează cu **Gemini** → scor 0–10 / Tier S·A·B·C |
+| 5️⃣ | Trimite alertă Telegram dacă scorul e **≥ 6** |
 
-Optimizat pentru telefoane (iPhone, Samsung, Honor, Xiaomi etc.). GPU/console rămân suportate secundar.
+> Optimizat pentru **telefoane** (iPhone, Samsung, Honor, Xiaomi…). GPU/console rămân suportate secundar.
 
 ---
 
-## Structură
+## 🏗 Flux
 
-```text
-alecs-olx-ro/
-├── monitor.py           # Daemon: scraping OLX + Telegram + AI
-├── olx_ro.py            # URL-uri OLX.ro, prețuri lei, potrivire model exact
-├── market_analytics.py  # Mediană, discount, marjă, lichiditate telefoane
-├── benchmarks.py        # Checklist flip telefoane (+ GPU/console)
-├── tests/               # Teste unitare
-├── requirements.txt
-├── .env.example
-└── ofertas_ro.db        # SQLite (se creează automat, nu e în git)
+```mermaid
+flowchart LR
+    A[🔍 OLX.ro] --> B[🎯 Model exact]
+    B --> C[📊 Mediană piață]
+    C --> D[🤖 Gemini AI]
+    D --> E{Scor ≥ 6?}
+    E -->|Da| F[📲 Telegram]
+    E -->|Nu| G[🔇 Skip]
+    style A fill:#23E5DB,stroke:#0f766e,color:#000
+    style D fill:#8E75B2,stroke:#5b4b8a,color:#fff
+    style F fill:#26A5E4,stroke:#0b6e99,color:#fff
+    style E fill:#f59e0b,stroke:#b45309,color:#000
 ```
 
 ---
 
-## Instalare (PC sau VPS)
+## 📂 Structură
+
+```text
+alecs-olx-ro/
+├── assets/
+│   ├── banner.jpeg
+│   └── telegram-alert.png   ← exemplu alertă
+├── monitor.py               # scraping + Telegram + AI
+├── olx_ro.py                # OLX.ro + prețuri lei + model exact
+├── market_analytics.py      # mediană / marjă / lichiditate telefoane
+├── benchmarks.py            # checklist flip telefoane
+├── tests/
+├── requirements.txt
+└── .env.example
+```
+
+---
+
+## 🚀 Instalare (PC sau VPS)
 
 ### Cerințe
-
-- Python 3.10+
-- Token Telegram de la [@BotFather](https://t.me/BotFather)
-- Cheie Gemini de la [Google AI Studio](https://aistudio.google.com/)
+- Python **3.10+**
+- Token de la [@BotFather](https://t.me/BotFather)
+- Cheie de la [Google AI Studio](https://aistudio.google.com/)
 
 ### Pași
 
@@ -52,7 +97,6 @@ python3 -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 
 pip install -r requirements.txt
-
 cp .env.example .env
 ```
 
@@ -64,24 +108,21 @@ GEMINI_API_KEY="cheia_ta_gemini"
 INTERVALO_SEGUNDOS=90
 ```
 
-### Pornire manuală
+### Pornire
 
 ```bash
 python -u monitor.py
 ```
 
-Apoi în Telegram: deschide botul → `/start`.
+În Telegram → deschide botul → **`/start`**
 
 ---
 
-## Instalare pe VPS (24/7 cu systemd)
+## 🖥 VPS 24/7 (systemd)
 
 ```bash
-# după clone + venv + .env (vezi mai sus)
 sudo nano /etc/systemd/system/alecs-olx.service
 ```
-
-Conținut (înlocuiește `USER` și path-ul):
 
 ```ini
 [Unit]
@@ -104,26 +145,25 @@ WantedBy=multi-user.target
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl enable --now alecs-olx.service
-sudo systemctl status alecs-olx.service
 journalctl -u alecs-olx.service -f
 ```
 
 ---
 
-## Cum se folosește (Telegram)
+## 📲 Cum se folosește
 
-Trimite `/start` — apar butoanele:
+Trimite **`/start`** — apar butoanele:
 
-| Buton | Ce face |
-| :--- | :--- |
-| **➕ Adaugă** | Apoi scrii modelul + preț max, ex: `honor 600 1500` |
-| **📋 Listă** | Căutările active |
-| **🗑 Șterge** | Alegi ce elimini (buton pe fiecare) |
-| **🏆 Top** | Cele mai bune oferte globale (scor 8–10) |
-| **📊 Tierlist** | Top pe căutările tale |
-| **❓ Ajutor** | Rezumat comenzi |
+| Buton | Acțiune |
+|:---|:---|
+| ➕ **Adaugă** | Apoi scrii: `honor 600 1500` |
+| 📋 **Listă** | Căutările active |
+| 🗑 **Șterge** | Alegi modelul de eliminat |
+| 🏆 **Top** | Oferte 8–10/10 |
+| 📊 **Tierlist** | Top pe căutările tale |
+| ❓ **Ajutor** | Ghid rapid |
 
-### Exemple de adăugare
+### Exemple
 
 ```text
 honor 600 1500
@@ -132,30 +172,36 @@ samsung s23 1800
 honor 600 pro 2500
 ```
 
-Poți folosi și comenzi: `/add`, `/list`, `/del`, `/top`, `/tierlist`  
-sau limbaj natural: *„Caut iPhone 13 până la 2.000 lei”*.
+Poți scrie și natural: *„Caut iPhone 13 până la 2.000 lei”*.
 
-### Reguli importante
-
-- Scrie **modelul exact** pe care vrei să-l cumperi pentru revânzare.
-- Botul respinge variantele (Pro/Smart/Lite/Max) dacă nu le-ai cerut.
-- La telefoane ignoră accesorii/piese (husă, folie, display etc.).
-- Alerta vine doar dacă AI dă scor ≥ 6 și prețul e sub plafonul tău.
-- Scanare: ~la 90s, max 5 pagini × 15 anunțuri per căutare.
+### Reguli
+- Scrie **modelul exact** pe care vrei să-l revinzi
+- `iphone 12` ≠ 12 Pro · `honor 600` ≠ Smart/Pro
+- Ignoră accesorii/piese (husă, folie, display…)
+- Alertă doar la scor **≥ 6** și sub plafonul tău
+- Scanare ~**90s**, max 5 pagini × 15 anunțuri / căutare
 
 ---
 
-## Disclaimer
+## ⚠️ Disclaimer
 
-Automatizarea pe OLX poate fi restricționată de termenii platformei. Folosește responsabil, pe cont propriu.  
-Lichiditatea și timpul de vânzare sunt **euristici**, nu garanții.  
-La HTTP 403/429 botul oprește scanarea până la restart (nu încearcă ocoliri).
+Automatizarea pe OLX poate fi restricționată. Folosește responsabil.  
+Lichiditatea / timpul de vânzare = **euristici**, nu garanții.  
+La HTTP **403/429** botul oprește scanarea până la restart.
 
-Bazat pe proiectul upstream [garimpo-olx-bot](https://github.com/Guilherme-L-C/garimpo-olx-bot) (MIT), adaptat pentru OLX România și telefoane.
+Bazat pe [garimpo-olx-bot](https://github.com/Guilherme-L-C/garimpo-olx-bot) (MIT), adaptat pentru OLX România & telefoane.
 
 ---
 
-## Contact
+<div align="center">
 
-- **WhatsApp:** [+40 732 159 658](https://wa.me/40732159658)
-- **Telegram:** [@alecss12](https://t.me/alecss12)
+### 📞 Contact
+
+[![WhatsApp](https://img.shields.io/badge/WhatsApp-+40_732_159_658-25D366?style=for-the-badge&logo=whatsapp&logoColor=white)](https://wa.me/40732159658)
+[![Telegram](https://img.shields.io/badge/Telegram-@alecss12-26A5E4?style=for-the-badge&logo=telegram&logoColor=white)](https://t.me/alecss12)
+
+<br/>
+
+**Alecs OLX RO** · telefoane · model exact · profit
+
+</div>
