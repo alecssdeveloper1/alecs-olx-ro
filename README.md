@@ -9,7 +9,7 @@
 [![Telegram](https://img.shields.io/badge/Telegram-Bot-26A5E4?style=for-the-badge&logo=telegram&logoColor=white)](https://t.me/alecss12)
 [![Gemini](https://img.shields.io/badge/Google-Gemini%20AI-8E75B2?style=for-the-badge&logo=googlegemini&logoColor=white)](https://aistudio.google.com/)
 [![License](https://img.shields.io/badge/License-MIT-2ea44f?style=for-the-badge)](LICENSE)
-[![Private](https://img.shields.io/badge/Repo-Private-111827?style=for-the-badge&logo=github)](https://github.com/alecssdeveloper1/alecs-olx-ro)
+[![Public](https://img.shields.io/badge/Repo-Public-2ea44f?style=for-the-badge&logo=github)](https://github.com/alecssdeveloper1/alecs-olx-ro)
 
 <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=600&size=22&duration=3500&pause=900&color=23E5DB&center=true&vCenter=true&multiline=true&repeat=true&width=680&height=80&lines=Caut%C4%83+telefoane+sub+pre%C8%9Bul+pie%C8%9Bei;Model+exact+%C2%B7+Scor+AI+%C2%B7+Alert%C4%83+Telegram;Arbitraj+pe+OLX+Rom%C3%A2nia" alt="typing animation" />
 
