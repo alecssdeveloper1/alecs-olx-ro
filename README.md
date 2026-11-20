@@ -152,3 +152,10 @@ Lichiditatea și timpul de vânzare sunt **euristici**, nu garanții.
 La HTTP 403/429 botul oprește scanarea până la restart (nu încearcă ocoliri).
 
 Bazat pe proiectul upstream [garimpo-olx-bot](https://github.com/Guilherme-L-C/garimpo-olx-bot) (MIT), adaptat pentru OLX România și telefoane.
+
+---
+
+## Contact
+
+- **WhatsApp:** [+40 732 159 658](https://wa.me/40732159658)
+- **Telegram:** [@alecss12](https://t.me/alecss12)
