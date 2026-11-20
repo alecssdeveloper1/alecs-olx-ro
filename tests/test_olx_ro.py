@@ -7,15 +7,15 @@ class OlxRomaniaTests(unittest.TestCase):
     def test_builds_romanian_search_url(self):
         self.assertEqual(
             olx_ro.build_search_url("iPhone 16"),
-            "https://www.olx.ro/oferte/q-iphone-16/",
+            "https://www.olx.ro/oferte/q-iphone-16/?search[order]=created_at:desc",
         )
         self.assertEqual(
             olx_ro.build_search_url("iPhone 16", page=2),
-            "https://www.olx.ro/oferte/q-iphone-16/?page=2",
+            "https://www.olx.ro/oferte/q-iphone-16/?page=2&search[order]=created_at:desc",
         )
         self.assertEqual(
             olx_ro.build_search_url("telefon încărcător"),
-            "https://www.olx.ro/oferte/q-telefon-%C3%AEnc%C4%83rc%C4%83tor/",
+            "https://www.olx.ro/oferte/q-telefon-%C3%AEnc%C4%83rc%C4%83tor/?search[order]=created_at:desc",
         )
         with self.assertRaises(ValueError):
             olx_ro.build_search_url("iPhone 16", page=0)

@@ -8,6 +8,7 @@ import time
 import threading
 from datetime import datetime
 import requests
+from curl_cffi import requests as cffi_requests
 from bs4 import BeautifulSoup
 from google import genai
 import benchmarks
@@ -27,12 +28,10 @@ TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 DB_PATH = os.getenv("DB_PATH", os.path.join(os.path.dirname(__file__), "ofertas_ro.db"))
 INTERVALO_SEGUNDOS = int(os.getenv("INTERVALO_SEGUNDOS", "90"))
-MAX_PAGES_PER_SEARCH = 5
-MAX_RESULTS_PER_PAGE = 15
+# OLX.ro nu afișează mai mult de 25 de pagini; pagina următoare revine la prima.
+MAX_PAGES_PER_SEARCH = int(os.getenv("MAX_PAGES_PER_SEARCH", "25"))
 SEARCH_PAGE_DELAY_SECONDS = 2
-OLX_USER_AGENT = os.getenv(
-    "OLX_USER_AGENT", "GarimpoOLXBot/1.0 (personal use)"
-)
+OLX_IMPERSONATE = os.getenv("OLX_IMPERSONATE", "chrome120")
 OLX_ACCESS_BLOCKED = False
 # Stare conversație pe chat: după butonul Adaugă, așteaptă modelul scris de utilizator.
 pending_actions = {}
@@ -78,9 +77,11 @@ class OLXAccessDeniedError(RuntimeError):
 
 
 def fetch_olx_page(url, timeout):
-    response = requests.get(
+    # impersonate setează amprenta TLS (JA3) și HTTP/2 ale browserului,
+    # inclusiv User-Agent-ul corespunzător. Nu trimitem un UA separat.
+    response = cffi_requests.get(
         url,
-        headers={"User-Agent": OLX_USER_AGENT},
+        impersonate=OLX_IMPERSONATE,
         timeout=timeout,
     )
     if response.status_code in {403, 429}:
@@ -724,11 +725,13 @@ def monitorar_rodada():
                 url_busca = olx_ro.build_search_url(query, page)
                 try:
                     r = fetch_olx_page(url_busca, timeout=15)
-                except requests.HTTPError as error:
+                except cffi_requests.exceptions.HTTPError as error:
                     if error.response is not None and error.response.status_code == 404:
                         break
                     raise
                 if r.status_code != 200:
+                    break
+                if page > 1 and f"page={page}" not in str(getattr(r, "url", url_busca)):
                     break
 
                 page_links = olx_ro.parse_listing_links(r.text)
@@ -744,11 +747,15 @@ def monitorar_rodada():
                     break
 
                 seen_page_ids.update(ad_id for ad_id, _ in page_links)
-                links_ad.extend(new_page_links[:MAX_RESULTS_PER_PAGE])
+                links_ad.extend(new_page_links)
+                print(
+                    f"  {query}: pagina {page}, {len(new_page_links)} anunțuri noi "
+                    f"({len(links_ad)} în total)"
+                )
                 if page < MAX_PAGES_PER_SEARCH:
                     time.sleep(SEARCH_PAGE_DELAY_SECONDS)
-                        
-            # Procesează cel mult 15 anunțuri din fiecare pagină.
+
+            # Procesează toate anunțurile găsite, de la cele mai noi.
             for ad_id, href in links_ad:
                 # Omite anunțurile pe care utilizatorul le-a primit deja.
                 if ad_ja_notificado(ad_id, chat_id):

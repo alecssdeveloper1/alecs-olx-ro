@@ -1,5 +1,5 @@
 import re
-from urllib.parse import quote, urljoin, urlsplit, urlunsplit
+from urllib.parse import quote, urlencode, urljoin, urlsplit, urlunsplit
 from typing import Union
 
 from bs4 import BeautifulSoup
@@ -85,12 +85,20 @@ def title_matches_exact_model(query: str, title: str) -> bool:
 
 
 def build_search_url(query: str, page: int = 1) -> str:
+    """Căutare OLX ordonată de la cele mai noi anunțuri (sortarea „Noi”)."""
     if page < 1:
         raise ValueError("page must be a positive integer")
 
     slug = quote(query.strip().lower().replace(" ", "-"), safe="-")
-    url = f"{OLX_BASE_URL}/oferte/q-{slug}/"
-    return url if page == 1 else f"{url}?page={page}"
+    params = {"search[order]": "created_at:desc"}
+    if page > 1:
+        params = {"page": str(page), **params}
+
+    def quote_query(value, safe="", encoding=None, errors=None):
+        return quote(str(value), safe="[]:")
+
+    query_string = urlencode(params, quote_via=quote_query)
+    return f"{OLX_BASE_URL}/oferte/q-{slug}/?{query_string}"
 
 
 def parse_listing_links(html: str) -> list[tuple[str, str]]:

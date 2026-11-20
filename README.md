@@ -196,7 +196,7 @@ Poți scrie și natural: *„Caut iPhone 13 până la 2.000 lei”*.
 - `iphone 12` ≠ 12 Pro · `honor 600` ≠ Smart/Pro
 - Ignoră accesorii/piese (husă, folie, display…)
 - Alertă doar la scor **≥ 6** și sub plafonul tău
-- Scanare ~**90s**, max 5 pagini × 15 anunțuri / căutare
+- Scanare ~**90s**, toate paginile fiecărei căutări (OLX se oprește la 25), anunțuri ordonate de la cele mai noi
 
 ---
 
