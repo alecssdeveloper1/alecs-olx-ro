@@ -17,9 +17,26 @@
 
 <br/>
 
-### 🔔 Exemplu alertă din bot
+### 🔔 Exemplu alertă reală din bot
 
-<img src="assets/telegram-alert.png" alt="Exemplu alertă Telegram" width="380"/>
+<img src="assets/exemplu-alerta-iphone15.jpg" alt="iPhone 15 — exemplu anunț găsit de bot" width="320"/>
+
+<table>
+<tr><td>
+
+📊 <b>SCOR IA: 6/10 (TIER B)</b><br/><br/>
+📦 <b>Produs:</b> iPhone 15 128 GB<br/>
+💰 <b>Preț cerut:</b> 1.500,00 lei<br/>
+📊 <b>Comparație cu piața:</b><br/>
+• Mediană observată: <b>1.800,00 lei</b> (38 anunțuri)<br/>
+• Prețul este cu <b>16,7%</b> sub mediana pieței<br/><br/>
+🧠 <b>Concluzie:</b> Ofertă acceptabilă pentru arbitraj datorită prețului sub medie, însă marja este modestă având în vedere defectele estetice raportate.<br/><br/>
+⚙️ <b>Analiză tehnică:</b> Modelul corespunde căutării, însă starea estetică prezintă urme de uzură și o ciobitură, ceea ce poate limita revânzarea.<br/><br/>
+📈 <b>Analiză de piață:</b> Prețul este cu 16,7% sub mediana pieței, oferind o marjă de profit potențială de <b>120 lei</b>.<br/><br/>
+🔗 <a href="https://www.olx.ro/d/oferta/iphone-15-128-gb-IDl7UDL.html">Deschide anunțul pe OLX</a>
+
+</td></tr>
+</table>
 
 <br/>
 
@@ -68,7 +85,7 @@ flowchart LR
 alecs-olx-ro/
 ├── assets/
 │   ├── banner.jpeg
-│   └── telegram-alert.png   ← exemplu alertă
+│   └── exemplu-alerta-iphone15.jpg   ← exemplu alertă reală
 ├── monitor.py               # scraping + Telegram + AI
 ├── olx_ro.py                # OLX.ro + prețuri lei + model exact
 ├── market_analytics.py      # mediană / marjă / lichiditate telefoane
