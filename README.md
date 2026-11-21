@@ -206,7 +206,7 @@ Automatizarea pe OLX poate fi restricționată. Folosește responsabil.
 Lichiditatea / timpul de vânzare = **euristici**, nu garanții.  
 La HTTP **403/429** botul oprește scanarea până la restart.
 
-Bazat pe [garimpo-olx-bot](https://github.com/Guilherme-L-C/garimpo-olx-bot) (MIT), adaptat pentru OLX România & telefoane.
+
 
 ---
 
