@@ -27,12 +27,19 @@ load_dotenv()
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 DB_PATH = os.getenv("DB_PATH", os.path.join(os.path.dirname(__file__), "ofertas_ro.db"))
-INTERVALO_SEGUNDOS = int(os.getenv("INTERVALO_SEGUNDOS", "90"))
+INTERVALO_SEGUNDOS = int(os.getenv("INTERVALO_SEGUNDOS", "45"))
 # OLX.ro nu afișează mai mult de 25 de pagini; pagina următoare revine la prima.
 MAX_PAGES_PER_SEARCH = int(os.getenv("MAX_PAGES_PER_SEARCH", "25"))
+# Scan rapid: doar pagina 1 („Noi”); la fiecare N runde → scan profund (toate paginile).
+MAX_PAGES_RAPID = int(os.getenv("MAX_PAGES_RAPID", "1"))
+DEEP_EVERY_N_ROUNDS = int(os.getenv("DEEP_EVERY_N_ROUNDS", "10"))
 SEARCH_PAGE_DELAY_SECONDS = 2
+# Alertă doar dacă marja netă (după cost flip) ≥ acest prag.
+MIN_MARJA_LEI = float(os.getenv("MIN_MARJA_LEI", "200"))
+COST_FLIP_LEI = float(os.getenv("COST_FLIP_LEI", "25"))
 OLX_IMPERSONATE = os.getenv("OLX_IMPERSONATE", "chrome120")
 OLX_ACCESS_BLOCKED = False
+_SCRAPE_ROUND = 0
 # Stare conversație pe chat: după butonul Adaugă, așteaptă modelul scris de utilizator.
 pending_actions = {}
 
@@ -259,7 +266,7 @@ RĂSPUNDE STRICT CU UN OBIECT JSON:
 }}
 
 Reguli:
-- Potrivire strictă pe model: „Honor 600” ≠ Smart/Pro/Lite; „iPhone 12” ≠ 12 Pro/Pro Max.
+- Potrivire STRICTĂ pe modelul din căutare: „Honor 600” ≠ Smart/Pro/Lite/smart5g; „iPhone 12” ≠ 12 Pro/Pro Max/Mini; „S23” ≠ S23 Ultra/FE. Dacă titlul sau descrierea sugerează altă variantă → aprovado=false, nota=0.
 - Respinge accesorii (husă, folie, încărcător), piese, telefoane defecte, iCloud/Google lock, preț 1 leu, schimburi fără preț clar.
 - Nu inventa baterie %, stocare sau garanții dacă nu apar în anunț.
 - Dacă prețul e peste mediană, spune explicit; nu îl numi chilipir.
@@ -356,10 +363,14 @@ def send_telegram(chat_id, title, price, url, description, score, review, pitaco
         market_position = olx_ro.describe_market_position(
             stats_mercado.get("discount_pct", 0)
         )
+        marja_neta = market_analytics.marja_neta_lei(stats_mercado, COST_FLIP_LEI)
+        pret_revanzare = stats_mercado.get("pret_revanzare_rapida")
         mercado_linha = (
             f"📊 <b>Comparație cu piața:</b>\n"
             f"• {reference_label}: {olx_ro.format_price(stats_mercado['mediana'])} ({sample_label})\n"
             f"• Prețul este {market_position}.\n"
+            f"💵 <b>Marjă netă est.:</b> {olx_ro.format_price(marja_neta)}"
+            f" (revânzare ~{olx_ro.format_price(pret_revanzare)}, cost flip {olx_ro.format_price(COST_FLIP_LEI)})\n"
         )
 
     pareceres = ""
@@ -473,7 +484,9 @@ def add_search(chat_id, termo, preco):
     preco_msg = olx_ro.format_price(preco) if preco < 999999 else "Fără limită de preț"
     send_msg(
         chat_id,
-        f"🎯 *Căutare adăugată!*\n\n📦 *Produs:* `{termo}`\n💰 *Preț maxim:* {preco_msg}\n\nTe anunț când găsesc un anunț potrivit pe modelul exact.",
+        f"🎯 *Căutare adăugată!*\n\n📦 *Produs:* `{termo}`\n💰 *Preț maxim:* {preco_msg}\n"
+        f"💵 Alertă doar la marjă netă ≥ {olx_ro.format_price(MIN_MARJA_LEI)} "
+        f"(model exact; dacă pui `128`/`256` în căutare, filtrez stocarea).\n",
         reply_markup=MAIN_KEYBOARD,
     )
 
@@ -533,8 +546,9 @@ def send_help(chat_id):
         "• *➕ Adaugă* → scrie modelul, ex: `honor 600 1500`\n"
         "• *📋 Listă* / *🗑 Șterge*\n"
         "• *🏆 Top* / *📊 Tierlist*\n\n"
-        "Exemple: `iphone 12 1200`, `samsung s23 1500`, `honor 600 pro 2500`\n"
-        "Filtru: `iphone 12` ≠ 12 Pro; `honor 600` ≠ Smart/Pro."
+        "Exemple: `iphone 13 128 1800`, `samsung s23 1500`, `honor 600 pro 2500`\n"
+        "Filtru: model exact · stocare dacă o pui (`128`≠`256`) · fără piese/lock\n"
+        f"Alertă doar la marjă netă ≥ {olx_ro.format_price(MIN_MARJA_LEI)}."
     )
     send_msg(chat_id, help_msg, reply_markup=MAIN_KEYBOARD)
 
@@ -696,12 +710,16 @@ def extrair_detalhes_ad(url):
         print(f"Eroare la extragerea detaliilor pentru {url}: {e}")
     return None
 
-def monitorar_rodada():
+def monitorar_rodada(max_pages=None):
     global OLX_ACCESS_BLOCKED
     if OLX_ACCESS_BLOCKED:
         return
 
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] Încep scanarea căutărilor active...")
+    pages_limit = max_pages if max_pages is not None else MAX_PAGES_PER_SEARCH
+    print(
+        f"[{datetime.now().strftime('%H:%M:%S')}] "
+        f"Încep scanarea ({'profund' if pages_limit > 1 else 'rapid'}, max {pages_limit} pag.)..."
+    )
     conn = get_db()
     c = conn.cursor()
     c.execute("SELECT id, chat_id, query, max_price FROM searches")
@@ -721,7 +739,7 @@ def monitorar_rodada():
         try:
             links_ad = []
             seen_page_ids = set()
-            for page in range(1, MAX_PAGES_PER_SEARCH + 1):
+            for page in range(1, pages_limit + 1):
                 url_busca = olx_ro.build_search_url(query, page)
                 try:
                     r = fetch_olx_page(url_busca, timeout=15)
@@ -752,7 +770,7 @@ def monitorar_rodada():
                     f"  {query}: pagina {page}, {len(new_page_links)} anunțuri noi "
                     f"({len(links_ad)} în total)"
                 )
-                if page < MAX_PAGES_PER_SEARCH:
+                if page < pages_limit:
                     time.sleep(SEARCH_PAGE_DELAY_SECONDS)
 
             # Procesează toate anunțurile găsite, de la cele mai noi.
@@ -766,7 +784,9 @@ def monitorar_rodada():
                 if cached and cached["score"] is not None:
                     titulo = cached["title"]
                     preco = cached["price"]
-                    if not olx_ro.title_matches_exact_model(query, titulo):
+                    desc = cached["review"] if cached["review"] else ""
+                    # Cache: fără descriere completă — refiltrăm pe titlu; scor vechi greșit → 0.
+                    if not olx_ro.listing_matches_exact_model(query, titulo, ""):
                         registrar_notificacao(ad_id, chat_id)
                         continue
                     desc = "Anunț verificat în cache."
@@ -788,7 +808,7 @@ def monitorar_rodada():
                     desc = detalhes["description"]
                     img = detalhes["image_url"]
 
-                    if not olx_ro.title_matches_exact_model(query, titulo):
+                    if not olx_ro.listing_matches_exact_model(query, titulo, desc):
                         salvar_ad_cache(
                             ad_id,
                             titulo,
@@ -800,19 +820,17 @@ def monitorar_rodada():
                         registrar_notificacao(ad_id, chat_id)
                         continue
 
-                    # La telefoane, sare peste accesorii/piese evidente.
+                    # Piese / lock / defect — înainte de AI (titlu + descriere).
                     if market_analytics.este_cautare_telefon(query):
-                        titlu_l = titulo.lower()
-                        if any(
-                            t in titlu_l for t in market_analytics.TERMENI_IGNORA_TELEFON
-                        ):
+                        risc = market_analytics.text_are_risc_flip(titulo, desc)
+                        if risc:
                             salvar_ad_cache(
                                 ad_id,
                                 titulo,
                                 preco,
                                 href,
                                 score=0,
-                                review="Accesoriu/piesă, nu telefon complet",
+                                review=risc,
                             )
                             registrar_notificacao(ad_id, chat_id)
                             continue
@@ -837,9 +855,43 @@ def monitorar_rodada():
                         
                     salvar_ad_cache(ad_id, titulo, preco, href, score, parecer, tier, pitaco_benchmark, pitaco_mercado)
                 
-                # Notifică utilizatorul pentru scoruri de cel puțin 6, în limita de preț.
+                desc_for_match = "" if desc == "Anunț verificat în cache." else desc
+
+                # Ultim filtru: model exact (titlu+descriere) înainte de alertă.
+                if score >= 6 and not olx_ro.listing_matches_exact_model(
+                    query, titulo, desc_for_match
+                ):
+                    print(f"⏭ Skip (model ≠ căutare): {titulo}")
+                    score = 0
+
+                if score >= 6 and market_analytics.este_cautare_telefon(query):
+                    risc = market_analytics.text_are_risc_flip(titulo, desc_for_match)
+                    if risc:
+                        print(f"⏭ Skip ({risc}): {titulo}")
+                        score = 0
+
+                # Marjă netă minimă — recalculează dacă lipsește din cache.
                 if score >= 6 and preco <= teto_preco:
-                    print(f"🎯 Trimit notificarea către {chat_id}: {titulo} [{score}/10 - {tier}]")
+                    if not stats_mercado or not stats_mercado.get("mediana"):
+                        stats_mercado = market_analytics.obtine_statistici_piata(
+                            query, preco, teto_preco
+                        )
+                    marja_neta = market_analytics.marja_neta_lei(
+                        stats_mercado, COST_FLIP_LEI
+                    )
+                    if marja_neta < MIN_MARJA_LEI:
+                        print(
+                            f"⏭ Skip (marjă {olx_ro.format_price(marja_neta)} "
+                            f"< min {olx_ro.format_price(MIN_MARJA_LEI)}): {titulo}"
+                        )
+                        score = 0
+
+                # Notifică: scor ≥ 6, sub plafon, marjă OK.
+                if score >= 6 and preco <= teto_preco:
+                    print(
+                        f"🎯 Trimit notificarea către {chat_id}: {titulo} "
+                        f"[{score}/10 - {tier}] marjă~{olx_ro.format_price(marja_neta)}"
+                    )
                     send_telegram(chat_id, titulo, preco, href, desc, score, parecer, pitaco_benchmark, pitaco_mercado, stats_mercado, img)
                     
                     # Actualizează contorul pentru a trimite un rezumat la fiecare 15 oferte.
@@ -1106,9 +1158,13 @@ def processar_comandos_telegram():
 
 # ================= LOOP PRINCIPAL =================
 def loop_scraping():
+    global _SCRAPE_ROUND
     while True:
         try:
-            monitorar_rodada()
+            _SCRAPE_ROUND += 1
+            deep = _SCRAPE_ROUND % DEEP_EVERY_N_ROUNDS == 0
+            pages = MAX_PAGES_PER_SEARCH if deep else MAX_PAGES_RAPID
+            monitorar_rodada(max_pages=pages)
         except Exception as e:
             print(f"Eroare în runda de monitorizare: {e}")
         time.sleep(INTERVALO_SEGUNDOS)

@@ -8,7 +8,8 @@ OLX_BASE_URL = "https://www.olx.ro"
 _LISTING_ID_PATTERN = re.compile(r"-ID([a-z0-9]+)\.html$", re.IGNORECASE)
 _ALLOWED_HOSTS = {"olx.ro", "www.olx.ro"}
 
-# Sufixe/variante de model: dacă apar în titlu dar nu în căutare, anunțul e alt produs.
+# Sufixe/variante de model: dacă apar în anunț dar nu în căutare → alt produs.
+# Inclusiv telefoane: Smart/Pro/Max/Ultra/Lite/FE/SE/Note/Fold/Edge…
 _VARIANT_TOKENS = frozenset(
     {
         "smart",
@@ -33,6 +34,14 @@ _VARIANT_TOKENS = frozenset(
         "play",
         "go",
         "flip",
+        "fold",
+        "edge",
+        "gt",
+        "ace",
+        "nord",
+        "magic",
+        "rival",
+        "digital",
         "charge",
         "clip",
         "pulse",
@@ -46,6 +55,7 @@ _VARIANT_TOKENS = frozenset(
         "boom",
     }
 )
+_VARIANT_TOKENS_SORTED = tuple(sorted(_VARIANT_TOKENS, key=len, reverse=True))
 
 _DIACRITICS = str.maketrans(
     {
@@ -61,27 +71,117 @@ _DIACRITICS = str.maketrans(
 
 
 def tokenize_model_text(text: str) -> list[str]:
+    """Desparte și pe granița litere/cifre: smart5g → smart, 5, g; 600smart → 600, smart."""
     normalized = str(text).lower().translate(_DIACRITICS)
-    return re.findall(r"[a-z0-9]+", normalized)
+    tokens: list[str] = []
+    for raw in re.findall(r"[a-z0-9]+", normalized):
+        parts = re.findall(r"[a-z]+|\d+", raw)
+        tokens.extend(parts if parts else [raw])
+    return tokens
 
 
-def title_matches_exact_model(query: str, title: str) -> bool:
+def _is_typo_junk(rest: str, variant: str) -> bool:
+    """Rest scurt după variantă: smartt → t (litera finală repetată), nu digital+a."""
+    return (
+        0 < len(rest) <= 2
+        and rest.isalpha()
+        and set(rest) == {variant[-1]}
+    )
+
+
+def _extract_variants_from_token(token: str) -> set[str]:
     """
-    Acceptă doar anunțul pentru modelul cerut.
-    Ex: „honor 600” ≠ „Honor 600 Smart”; „jbl 310” ≠ orice alt JBL.
+    Extrage variante din token: smart, smart5g, smartt, promax, 600pro.
+    „pro” din „product” NU trece — restul trebuie gol / cifră / altă variantă / typo scurt.
+    """
+    if token in _VARIANT_TOKENS:
+        return {token}
+
+    found: set[str] = set()
+    remaining = token
+    while remaining:
+        matched = False
+        for variant in _VARIANT_TOKENS_SORTED:
+            if not remaining.startswith(variant):
+                continue
+            rest = remaining[len(variant) :]
+            if (
+                rest == ""
+                or rest.isdigit()
+                or _is_typo_junk(rest, variant)
+                or any(rest.startswith(v) for v in _VARIANT_TOKENS_SORTED)
+            ):
+                found.add(variant)
+                remaining = rest.lstrip("0123456789")
+                matched = True
+                break
+        if not matched:
+            break
+    return found
+
+
+def _variant_tokens_in(tokens: list[str]) -> set[str]:
+    found: set[str] = set()
+    for token in tokens:
+        found |= _extract_variants_from_token(token)
+    return found
+
+
+# Stocare: dacă o ceri în căutare, anunțul cu altă capacitate e respins.
+_STORAGE_SIZES = frozenset({"32", "64", "128", "256", "512", "1024"})
+_OPTIONAL_QUERY_UNITS = frozenset({"gb", "tb", "g", "ram", "lei", "ron"})
+
+
+def extract_storage_sizes(text: str) -> set[str]:
+    tokens = tokenize_model_text(text)
+    sizes: set[str] = set()
+    for i, token in enumerate(tokens):
+        if token in _STORAGE_SIZES:
+            sizes.add(token)
+        elif token == "1" and i + 1 < len(tokens) and tokens[i + 1] == "tb":
+            sizes.add("1024")
+    return sizes
+
+
+def listing_matches_exact_model(
+    query: str, title: str, description: str = ""
+) -> bool:
+    """
+    Model exact pe telefoane (și rest): ce cauți = ce primești.
+    Tokenii căutării trebuie în titlu; variantele (Smart/Pro/…) din titlu+descriere
+    trebuie să fie subset al căutării. Stocare cerută ≠ altă stocare în anunț.
     """
     query_tokens = tokenize_model_text(query)
     title_tokens = tokenize_model_text(title)
     if not query_tokens or not title_tokens:
         return False
 
+    required_tokens = [
+        token for token in query_tokens if token not in _OPTIONAL_QUERY_UNITS
+    ]
     title_token_set = set(title_tokens)
-    if any(token not in title_token_set for token in query_tokens):
+    if any(token not in title_token_set for token in required_tokens):
         return False
 
-    query_variants = {token for token in query_tokens if token in _VARIANT_TOKENS}
-    title_variants = {token for token in title_tokens if token in _VARIANT_TOKENS}
-    return title_variants <= query_variants
+    query_variants = _variant_tokens_in(query_tokens)
+    blob = f"{title} {(description or '')[:800]}"
+    blob_tokens = tokenize_model_text(blob)
+    listing_variants = _variant_tokens_in(blob_tokens)
+    if not listing_variants <= query_variants:
+        return False
+
+    query_storage = extract_storage_sizes(query)
+    if query_storage:
+        listing_storage = extract_storage_sizes(blob)
+        if listing_storage and not query_storage.issubset(listing_storage):
+            return False
+
+    return True
+
+
+def title_matches_exact_model(query: str, title: str) -> bool:
+    """Compat: același filtru, doar pe titlu."""
+    return listing_matches_exact_model(query, title, "")
 
 
 def build_search_url(query: str, page: int = 1) -> str:

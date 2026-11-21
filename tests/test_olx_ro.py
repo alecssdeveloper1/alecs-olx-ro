@@ -84,6 +84,18 @@ class OlxRomaniaTests(unittest.TestCase):
         self.assertFalse(
             olx_ro.title_matches_exact_model(
                 "honor 600",
+                "Honor 600 Smartt",
+            )
+        )
+        self.assertFalse(
+            olx_ro.title_matches_exact_model(
+                "honor 600",
+                "Vand tel honor 600 smart5g",
+            )
+        )
+        self.assertFalse(
+            olx_ro.title_matches_exact_model(
+                "honor 600",
                 "Honor 600 Pro 512GB",
             )
         )
@@ -104,6 +116,79 @@ class OlxRomaniaTests(unittest.TestCase):
         )
         self.assertFalse(
             olx_ro.title_matches_exact_model("iphone 12", "iPhone 12 Pro Max")
+        )
+        self.assertFalse(
+            olx_ro.title_matches_exact_model("iphone 12", "iPhone 12promax 128GB")
+        )
+        self.assertFalse(
+            olx_ro.title_matches_exact_model("samsung s23", "Samsung S23 Ultra")
+        )
+        self.assertTrue(
+            olx_ro.title_matches_exact_model("samsung s23", "Samsung Galaxy S23 256GB")
+        )
+        self.assertFalse(
+            olx_ro.listing_matches_exact_model(
+                "honor 600",
+                "Honor 600 256GB",
+                "Honor 600 Smart sigilat, garantie Orange",
+            )
+        )
+        self.assertTrue(
+            olx_ro.listing_matches_exact_model(
+                "honor 600",
+                "Honor 600 256GB Black",
+                "Telefon sigilat, factura si garantie",
+            )
+        )
+        self.assertTrue(
+            olx_ro.listing_matches_exact_model(
+                "iphone 13 128",
+                "iPhone 13 128GB Midnight",
+                "Ca nou, baterie 91%",
+            )
+        )
+        self.assertFalse(
+            olx_ro.listing_matches_exact_model(
+                "iphone 13 128",
+                "iPhone 13 256GB Midnight",
+                "Ca nou",
+            )
+        )
+        self.assertTrue(
+            olx_ro.listing_matches_exact_model(
+                "iphone 13 128gb",
+                "iPhone 13 128 GB",
+                "",
+            )
+        )
+
+
+class FlipFilterTests(unittest.TestCase):
+    def test_rejects_parts_and_locks(self):
+        import market_analytics
+
+        self.assertIsNotNone(
+            market_analytics.text_are_risc_flip(
+                "iPhone 12 display spart", "pentru piese"
+            )
+        )
+        self.assertIsNotNone(
+            market_analytics.text_are_risc_flip(
+                "iPhone 11", "icloud activ, cont blocat"
+            )
+        )
+        self.assertIsNone(
+            market_analytics.text_are_risc_flip(
+                "iPhone 13 128GB", "sigilat, factura"
+            )
+        )
+
+    def test_net_margin(self):
+        import market_analytics
+
+        self.assertEqual(
+            market_analytics.marja_neta_lei({"marja_profit": 300}, 25),
+            275.0,
         )
 
 

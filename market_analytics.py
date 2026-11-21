@@ -102,7 +102,7 @@ TERMENI_IGNORA_PIESA = [
     "setup complet",
 ]
 
-# Accesorii / piese — nu sunt telefonul complet pentru revânzare.
+# Accesorii / piese / lock — nu sunt telefon flipabil.
 TERMENI_IGNORA_TELEFON = [
     "doar husa",
     "doar husă",
@@ -117,12 +117,43 @@ TERMENI_IGNORA_TELEFON = [
     "dezmembrări",
     "display nou",
     "ecran nou",
+    "doar display",
+    "doar ecran",
     "capac spate",
     "baterie noua",
     "baterie nouă",
     "placa de baza",
     "placă de bază",
+    "icloud",
+    "activation lock",
+    "activ lock",
+    "cont blocat",
+    "google lock",
+    "frp lock",
+    "mdm",
+    "nu porneste",
+    "nu pornește",
+    "display spart",
+    "ecran spart",
+    "geam spart",
+    "pentru reparat",
+    "defect major",
 ]
+
+
+def text_are_risc_flip(title: str, description: str = "") -> str | None:
+    """Returnează motivul de respingere sau None dacă e candidat OK."""
+    blob = f"{title} {description or ''}".lower()
+    for termen in TERMENI_IGNORA_TELEFON:
+        if termen in blob:
+            return f"Riscuri/piese/lock: {termen}"
+    return None
+
+
+def marja_neta_lei(stats_mercado: dict, cost_flip_lei: float = 25.0) -> float:
+    """Marjă după costuri tipice (transport etc.)."""
+    brut = float(stats_mercado.get("marja_profit") or 0)
+    return round(brut - float(cost_flip_lei), 2)
 
 MARCI_TELEFON = (
     "iphone",
