@@ -220,7 +220,6 @@ Automatizarea pe OLX/Vinted poate fi restricționată. Folosește responsabil.
 Lichiditatea / timpul de vânzare = **euristici**, nu garanții.  
 La HTTP **403/429** pe OLX botul oprește scanarea OLX până la restart (Vinted continuă).
 
-Bazat pe [garimpo-olx-bot](https://github.com/Guilherme-L-C/garimpo-olx-bot) (MIT), adaptat pentru OLX/Vinted România & telefoane.
 
 ---
 
