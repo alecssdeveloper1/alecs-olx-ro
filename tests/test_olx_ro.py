@@ -183,6 +183,96 @@ class FlipFilterTests(unittest.TestCase):
             )
         )
 
+    def test_listing_profile_and_storage_cohort(self):
+        profil = olx_ro.inspect_listing(
+            "Samsung S26 Ultra 256GB",
+            "nou, stare perfecta, 256 gb",
+            description_fetched=True,
+        )
+        self.assertTrue(profil["ok"])
+        self.assertEqual(profil["storage"], "256")
+        self.assertEqual(profil["condition"], "nou")
+        self.assertEqual(profil["variant"], "ultra")
+
+        conflict = olx_ro.inspect_listing(
+            "iPhone 13 256 GB",
+            "de fapt este 128 gb",
+            description_fetched=True,
+        )
+        self.assertFalse(conflict["ok"])
+
+        sealed = olx_ro.inspect_listing(
+            "Honor 600 Lite",
+            "",
+            platform_condition="New with tags",
+            description_fetched=True,
+        )
+        self.assertEqual(sealed["condition"], "sigilat")
+        self.assertGreaterEqual(
+            olx_ro.with_confidence(sealed, sample_count=5, cohort_specific=False)["incredere"],
+            50,
+        )
+
+        import market_analytics
+
+        prices, specific = market_analytics.cohort_prices(
+            [
+                ("S26 Ultra 256", 4000),
+                ("S26 Ultra 256GB", 4200),
+                ("S26 Ultra 256 gb", 4500),
+                ("S26 Ultra 512GB", 5200),
+                ("S26", 3000),
+            ],
+            "s26 ultra",
+            storage="256",
+        )
+        self.assertTrue(specific)
+        self.assertEqual(prices, [4000, 4200, 4500])
+        mixed, mixed_specific = market_analytics.cohort_prices(
+            [
+                ("S26 Ultra 256", 4000),
+                ("S26 Ultra 512", 5200),
+            ],
+            "s26 ultra",
+            storage="256",
+        )
+        self.assertFalse(mixed_specific)
+        self.assertEqual(mixed, [4000, 5200])
+
+    def test_thin_olx_sample_has_no_invented_margin(self):
+        import sqlite3
+        import tempfile
+
+        import market_analytics
+
+        with tempfile.TemporaryDirectory() as folder:
+            path = f"{folder}/ads.db"
+            conn = sqlite3.connect(path)
+            conn.execute(
+                """
+                CREATE TABLE ads (
+                    id TEXT PRIMARY KEY,
+                    title TEXT,
+                    price REAL,
+                    source TEXT DEFAULT 'olx'
+                )
+                """
+            )
+            conn.execute(
+                "INSERT INTO ads (id, title, price, source) VALUES ('1', 'S26 Ultra 256', 4000, 'olx')"
+            )
+            conn.execute(
+                "INSERT INTO ads (id, title, price, source) VALUES ('vinted:9', 'S26 Ultra 256', 500, 'vinted')"
+            )
+            conn.commit()
+            conn.close()
+            stats = market_analytics.obtine_statistici_piata(
+                "s26 ultra", 4000, cale_db=path
+            )
+        self.assertFalse(stats["esantion_suficient"])
+        self.assertEqual(stats["marja_profit"], 0)
+        self.assertEqual(stats["total_esantioane"], 1)
+
     def test_net_margin(self):
         import market_analytics
 

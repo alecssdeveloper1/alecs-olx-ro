@@ -179,13 +179,34 @@ def este_cautare_telefon(query: str) -> bool:
     return any(marca in q for marca in MARCI_TELEFON)
 
 
-def obtine_statistici_piata(query, pret_anunt, pret_maxim=None, cale_db=None):
+def cohort_prices(pairs, query, storage=None):
+    """Prețuri pe modelul exact. Dacă sunt ≥3 anunțuri cu aceeași stocare, doar acelea."""
+    matched = [
+        (title, price)
+        for title, price in pairs
+        if olx_ro.title_matches_exact_model(query, title or "")
+    ]
+    prices = [price for _title, price in matched]
+    if not storage:
+        return prices, False
+    subset = [
+        price
+        for title, price in matched
+        if storage in olx_ro.extract_storage_sizes(title)
+    ]
+    if len(subset) >= 3:
+        return subset, True
+    return prices, False
+
+
+def obtine_statistici_piata(query, pret_anunt, pret_maxim=None, cale_db=None, stocare=None):
     if cale_db is None:
         cale_db = os.getenv(
             "DB_PATH", os.path.join(os.path.dirname(__file__), "ofertas_ro.db")
         )
 
-    conn = sqlite3.connect(cale_db)
+    conn = sqlite3.connect(cale_db, timeout=30.0)
+    conn.execute("PRAGMA busy_timeout = 30000")
     c = conn.cursor()
 
     cuvinte = [cuvant for cuvant in query.split() if len(cuvant) > 2]
@@ -216,6 +237,12 @@ def obtine_statistici_piata(query, pret_anunt, pret_maxim=None, cale_db=None):
     else:
         plafon_taiere = 8000.0 if este_cautare_telefon(query) else 5000.0
 
+    c.execute("PRAGMA table_info(ads)")
+    columns = {row[1] for row in c.fetchall()}
+    source_filter = ""
+    if "source" in columns:
+        source_filter = "AND COALESCE(source, 'olx') = 'olx'"
+
     c.execute(
         f"""
         SELECT title, price
@@ -223,25 +250,30 @@ def obtine_statistici_piata(query, pret_anunt, pret_maxim=None, cale_db=None):
         WHERE {where_str}
           AND price >= 50
           AND price <= ?
+          AND id NOT LIKE 'vinted:%'
+          {source_filter}
         """,
         params + [plafon_taiere],
     )
     rows = c.fetchall()
     conn.close()
 
-    preturi = sorted(
-        [
-            float(price)
-            for title, price in rows
-            if price is not None
-            and olx_ro.title_matches_exact_model(query, title or "")
-        ]
-    )
+    pairs = [
+        (title or "", float(price))
+        for title, price in rows
+        if price is not None
+    ]
+    preturi, cohort_specific = cohort_prices(pairs, query, stocare)
+    preturi = sorted(preturi)
 
     if len(preturi) < 3:
-        # Estimare prudentă când istoricul e sărac (tipic la început pe un model nou).
-        mediana = round(pret_anunt * 1.25, 2) if pret_anunt > 0 else 100.0
+        # Prea puține anunțuri OLX: nu inventăm o marjă de revânzare.
+        mediana = round(statistics.median(preturi), 2) if preturi else 0.0
         total_esantioane = len(preturi)
+        esantion_suficient = False
+        pret_revanzare_rapida = 0.0
+        marja_profit = 0.0
+        discount_pct = 0.0
     else:
         try:
             q1, q2, q3 = statistics.quantiles(preturi, n=4)
@@ -257,15 +289,17 @@ def obtine_statistici_piata(query, pret_anunt, pret_maxim=None, cale_db=None):
             mediana = round(statistics.median(preturi), 2)
             total_esantioane = len(preturi)
 
-    if mediana > 0:
+        esantion_suficient = True
+
+    if esantion_suficient and mediana > 0:
         discount_pct = round(((mediana - pret_anunt) / mediana) * 100, 1)
+        factor_revanzare = 0.92 if este_cautare_telefon(query) else 0.90
+        pret_revanzare_rapida = round(mediana * factor_revanzare, 2)
+        marja_profit = round(pret_revanzare_rapida - pret_anunt, 2)
     else:
         discount_pct = 0.0
-
-    # Revânzare rapidă: telefoanele se mișcă mai bine aproape de mediană (92%).
-    factor_revanzare = 0.92 if este_cautare_telefon(query) else 0.90
-    pret_revanzare_rapida = round(mediana * factor_revanzare, 2)
-    marja_profit = round(pret_revanzare_rapida - pret_anunt, 2)
+        pret_revanzare_rapida = 0.0
+        marja_profit = 0.0
 
     cheie_lichiditate = "Medie"
     timp_vanzare = "3–7 zile"
@@ -287,4 +321,7 @@ def obtine_statistici_piata(query, pret_anunt, pret_maxim=None, cale_db=None):
         "timp_vanzare": timp_vanzare,
         "pret_revanzare_rapida": pret_revanzare_rapida,
         "marja_profit": marja_profit,
+        "cohort_specific": cohort_specific,
+        "stocare": stocare,
+        "esantion_suficient": esantion_suficient,
     }

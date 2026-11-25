@@ -248,6 +248,137 @@ def parse_price(value: Union[str, int, float]) -> float:
     return float(normalized)
 
 
+_CONDITION_FROM_PLATFORM = {
+    "new with tags": "sigilat",
+    "new without tags": "nou",
+    "very good": "utilizat",
+    "good": "utilizat",
+    "satisfactory": "utilizat",
+}
+_VARIANT_ORDER = (
+    "mini",
+    "se",
+    "fe",
+    "lite",
+    "air",
+    "neo",
+    "plus",
+    "pro",
+    "max",
+    "ultra",
+    "fold",
+    "flip",
+    "note",
+    "edge",
+)
+
+
+def format_storage(size: str) -> str:
+    if str(size) == "1024":
+        return "1 TB"
+    return f"{size} GB"
+
+
+def primary_storage(text: str) -> Union[str, None]:
+    sizes = extract_storage_sizes(text or "")
+    if len(sizes) == 1:
+        return next(iter(sizes))
+    return None
+
+
+def variant_label(text: str) -> str:
+    found = _variant_tokens_in(tokenize_model_text(text or ""))
+    ordered = [token for token in _VARIANT_ORDER if token in found]
+    ordered.extend(sorted(found - set(ordered)))
+    return " ".join(ordered) if ordered else "standard"
+
+
+def identify_condition(text: str, platform_condition: str = "") -> str:
+    platform = (platform_condition or "").strip().lower()
+    if platform in _CONDITION_FROM_PLATFORM:
+        return _CONDITION_FROM_PLATFORM[platform]
+
+    blob = str(text or "").lower().translate(_DIACRITICS)
+    if any(marker in blob for marker in ("sigilat", "sealed", "new with tags")):
+        return "sigilat"
+    if any(
+        marker in blob
+        for marker in ("ca nou", "like new", "utilizat", "second hand", "second-hand", "uzat", "folosit")
+    ):
+        return "utilizat"
+    tokens = set(tokenize_model_text(blob))
+    if tokens & {"nou", "nefolosit", "new", "unused"}:
+        return "nou"
+    if "used" in tokens:
+        return "utilizat"
+    return "necunoscut"
+
+
+def inspect_listing(
+    title: str,
+    description: str = "",
+    platform_condition: str = "",
+    description_fetched: bool = False,
+) -> dict:
+    """Stocare, stare, variantă și dacă descrierea contrazice titlul."""
+    title_storage = primary_storage(title)
+    description_storage = primary_storage(description)
+    ok = True
+    motiv = ""
+    if title_storage and description_storage and title_storage != description_storage:
+        ok = False
+        motiv = (
+            f"Stocare diferită: titlu {format_storage(title_storage)}, "
+            f"descriere {format_storage(description_storage)}"
+        )
+    storage = title_storage or description_storage
+    return {
+        "ok": ok,
+        "motiv": motiv,
+        "storage": storage,
+        "storage_label": format_storage(storage) if storage else "necunoscută",
+        "condition": identify_condition(f"{title} {description}", platform_condition),
+        "variant": variant_label(title),
+        "description_fetched": description_fetched,
+        "description_len": len((description or "").strip()),
+    }
+
+
+def with_confidence(profil: dict, sample_count: int = 0, cohort_specific: bool = False) -> dict:
+    enriched = dict(profil)
+    score = 20
+    if enriched.get("description_fetched") and enriched.get("description_len", 0) >= 15:
+        score += 25
+    elif enriched.get("description_fetched"):
+        score += 10
+    if enriched.get("storage"):
+        score += 20
+    if enriched.get("condition") not in {None, "", "necunoscut"}:
+        score += 15
+    if enriched.get("variant") and enriched["variant"] != "standard":
+        score += 10
+    elif enriched.get("variant") == "standard":
+        score += 5
+    if sample_count >= 3:
+        score += 10
+    if cohort_specific:
+        score += 10
+    if not enriched.get("ok", True):
+        score = min(score, 25)
+    enriched["incredere"] = max(0, min(100, score))
+    return enriched
+
+
+def bind_profile(stats: dict, profil: dict) -> dict:
+    merged = dict(stats or {})
+    merged["profil"] = with_confidence(
+        profil,
+        sample_count=int(merged.get("total_esantioane") or 0),
+        cohort_specific=bool(merged.get("cohort_specific")),
+    )
+    return merged
+
+
 def describe_market_position(discount_percent: float) -> str:
     percent = f"{abs(discount_percent):.1f}".replace(".", ",")
     if discount_percent > 0:
